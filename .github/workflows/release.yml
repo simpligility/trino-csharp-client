@@ -1,0 +1,33 @@
+name: Release a new version
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    permissions:
+      id-token: write  # enable GitHub OIDC token issuance for this job
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up dotnet
+        uses: actions/setup-dotnet@v3
+      - name: Set up msbuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Set up nuget
+        uses: nuget/setup-nuget@v2
+        with:
+          nuget-version: '5.x'
+      - name: Nuget restore
+        run: nuget restore trino-csharp/TrinoDriver.sln
+      - name: Run msbuild
+        run: msbuild trino-csharp/TrinoDriver.sln 
+      # Get a short-lived NuGet API key
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.RELEASE_NUGET_USER }}    
+      # Push the package
+      - name: NuGet push
+        run: dotnet nuget push artifacts/my-sdk.nupkg --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
